@@ -7,8 +7,11 @@ needs utils
 \ all the filter tests to run
 [] var, tests
 
-: push-test \ s w --
-    >r "," s:/ 1 ' >n a:op! r> a:push tests @ swap a:push drop ;
+: build-test \ col arg w -- a
+    >r >n r> 3 a:close ;
+
+: push-test \ col s w --
+    build-test tests @ swap a:push drop ;
 
 : cuts \ s -- a
     "," s:/ ( dup >n swap ?: ) a:map ;
@@ -17,9 +20,9 @@ needs utils
 { "-f"  : ( a:shift dup csv:>sep )    \ field separator
 , "-c"  : ( a:shift cuts )            \ columns/cut
 , "-H"  : ( true )                    \ header row
-, "-lt" : ( a:shift ' n:< push-test null )
-, "-gt" : ( a:shift ' n:> push-test null )
-, "-eq" : ( a:shift ' n:= push-test null )
+, "-lt" : ( 2 a:take a:open ' n:< push-test null )
+, "-gt" : ( 2 a:take a:open ' n:> push-test null )
+, "-eq" : ( 2 a:take a:open ' n:= push-test null )
 } constant optmap
 
 : open \ s -- f
@@ -30,17 +33,23 @@ needs utils
         csv:rec> csv:>header
     then ;
 
+: test \ a f test -- a f
+    swap >r a:open >r >r csv:col a:@ >n r> r> w:exec r> ;
+
 : filter \ a -- a f
-    tests @ ( swap >r a:open >r >r csv:col a:@ >n r> r> w:exec r> ) a:every ;
+    tests @ ' test a:every ;
 
 : cut \ a -- a
     "-c" app:opts@ null; csv:cut ;
 
-: process \ f --
+: process \ a --
     filter if cut "," csv:.rec then drop ;
 
 : app:main \ entry point
     optmap opts:argv opts:parse
 
     \ process each data file
-    ( open ' process csv:each f:close ) a:each! ;
+    ( open ' process csv:each f:close ) a:each! 
+    
+    \ done
+    bye ;
