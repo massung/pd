@@ -1,14 +1,14 @@
+#! /bin/env 8th
+
 needs csv
 needs opts
 needs utils
 
-\ initialize compare filters
-"-lt" a:new app:opts!
-"-gt" a:new app:opts!
-"-eq" a:new app:opts!
+\ all the filter tests to run
+[] var, tests
 
-: push-cmp \ s -- a
-    "," s:/ 1 ' >n a:op! ;
+: push-test \ s w --
+    >r "," s:/ 1 ' >n a:op! r> a:push tests @ swap a:push drop ;
 
 : cuts \ s -- a
     "," s:/ ( dup >n swap ?: ) a:map ;
@@ -17,36 +17,21 @@ needs utils
 { "-f"  : ( a:shift dup csv:>sep )    \ field separator
 , "-c"  : ( a:shift cuts )            \ columns/cut
 , "-H"  : ( true )                    \ header row
-, "-lt" : ( a:shift push-cmp "-lt" app:opts@ swap a:push )
-, "-gt" : ( a:shift push-cmp "-gt" app:opts@ swap a:push )
-, "-eq" : ( a:shift push-cmp "-eq" app:opts@ swap a:push )
+, "-lt" : ( a:shift ' n:< push-test null )
+, "-gt" : ( a:shift ' n:> push-test null )
+, "-eq" : ( a:shift ' n:= push-test null )
 } constant optmap
 
 : open \ s -- f
-    f:open-ro null? if;
+    f:open-ro null? if "input file not found" . bye then
 
     \ optionally read the header row
     "-H" app:opts@ if
         csv:rec> csv:>header
     then ;
 
-: col-cmp \ a w col n -- a f
-    >r csv:col a:@ >n r> rot w:exec ;
-
-: do-cmp \ a cmp test -- a f
-    >r dup r> a:open col-cmp ;
-
-: do-cmps \ a cmp tests -- a f
-    
-
-    ( do-cmp not if false break then ) a:each! ;
-
-: lt ' n:< "-lt" app:opts@ do-cmps ;
-: gt ' n:> "-gt" app:opts@ do-cmps ;
-: eq ' n:= "-eq" app:opts@ do-cmps ;
-
 : filter \ a -- a f
-    gt if lt ;then false ; \ if gt if eq ;then ;then false ;
+    tests @ ( swap >r a:open >r >r csv:col a:@ >n r> r> w:exec r> ) a:every ;
 
 : cut \ a -- a
     "-c" app:opts@ null; csv:cut ;
