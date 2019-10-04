@@ -1,0 +1,61 @@
+needs csv
+needs opts
+needs utils
+
+\ initialize compare filters
+"-lt" a:new app:opts!
+"-gt" a:new app:opts!
+"-eq" a:new app:opts!
+
+: push-cmp \ s -- a
+    "," s:/ 1 ' >n a:op! ;
+
+: cuts \ s -- a
+    "," s:/ ( dup >n swap ?: ) a:map ;
+
+\ command line options
+{ "-f"  : ( a:shift dup csv:>sep )    \ field separator
+, "-c"  : ( a:shift cuts )            \ columns/cut
+, "-H"  : ( true )                    \ header row
+, "-lt" : ( a:shift push-cmp "-lt" app:opts@ swap a:push )
+, "-gt" : ( a:shift push-cmp "-gt" app:opts@ swap a:push )
+, "-eq" : ( a:shift push-cmp "-eq" app:opts@ swap a:push )
+} constant optmap
+
+: open \ s -- f
+    f:open-ro null? if;
+
+    \ optionally read the header row
+    "-H" app:opts@ if
+        csv:rec> csv:>header
+    then ;
+
+: col-cmp \ a w col n -- a f
+    >r csv:col a:@ >n r> rot w:exec ;
+
+: do-cmp \ a cmp test -- a f
+    >r dup r> a:open col-cmp ;
+
+: do-cmps \ a cmp tests -- a f
+    
+
+    ( do-cmp not if false break then ) a:each! ;
+
+: lt ' n:< "-lt" app:opts@ do-cmps ;
+: gt ' n:> "-gt" app:opts@ do-cmps ;
+: eq ' n:= "-eq" app:opts@ do-cmps ;
+
+: filter \ a -- a f
+    gt if lt ;then false ; \ if gt if eq ;then ;then false ;
+
+: cut \ a -- a
+    "-c" app:opts@ null; csv:cut ;
+
+: process \ f --
+    filter if cut "," csv:.rec then drop ;
+
+: app:main \ entry point
+    optmap opts:argv opts:parse
+
+    \ process each data file
+    ( open ' process csv:each f:close ) a:each! ;

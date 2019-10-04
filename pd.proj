@@ -1,0 +1,22 @@
+{
+   "ignore-paths":   [".*"
+   ],
+   "ignore-files":   [""
+   ],
+   "source":".\\pd.8th",
+   "app-name":"pd",
+   "gui":false,
+   "app-ver":"1.0",
+   "stripall":false,
+   "strip":false,
+   "windows":true,
+   "icon":"project.png",
+   "osx":false,
+   "android":false,
+   "ios":false,
+   "enc":false,
+   "linux":true,
+   "rpi":false,
+   "perms":   ["INTERNET","WRITE_EXTERNAL_STORAGE","ACCESS_NETWORK_STATE"
+   ]
+}
