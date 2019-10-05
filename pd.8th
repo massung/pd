@@ -20,18 +20,18 @@ needs utils
 { "-f"  : ( a:shift dup csv:>sep )    \ field separator
 , "-c"  : ( a:shift cuts )            \ columns/cut
 , "-H"  : ( true )                    \ header row
+, "-oH" : ( true )                    \ output header row
+, "-of" : ( a:shift )                 \ output field separator
 , "-lt" : ( 2 a:take a:open ' n:< push-test null )
 , "-gt" : ( 2 a:take a:open ' n:> push-test null )
 , "-eq" : ( 2 a:take a:open ' n:= push-test null )
 } constant optmap
 
-: open \ s -- f
-    f:open-ro null? if "input file not found" . bye then
+: read \ f -- f
+    "-H" app:opts@ if csv:rec> csv:>header then ;
 
-    \ optionally read the header row
-    "-H" app:opts@ if
-        csv:rec> csv:>header
-    then ;
+: open \ s -- f
+    f:open-ro null? if "input file not found" . bye then ;
 
 : test \ a f test -- a f
     swap >r a:open >r >r csv:col a:@ >n r> r> w:exec r> ;
@@ -42,14 +42,21 @@ needs utils
 : cut \ a -- a
     "-c" app:opts@ null; csv:cut ;
 
+: sep \ -- s
+    "-of" app:opts@ "," ?: ;
+
 : process \ a --
-    filter if cut "," csv:.rec then drop ;
+    filter if cut sep csv:.rec then drop ;
 
 : app:main \ entry point
     optmap opts:argv opts:parse
 
-    \ process each data file
-    ( open ' process csv:each f:close ) a:each! 
-    
+    \ any input files?
+    null? if
+        f:stdin read ' process csv:each
+    else
+        ( open read ' process csv:each f:close ) a:each!
+    then
+
     \ done
     bye ;
