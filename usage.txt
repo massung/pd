@@ -1,0 +1,25 @@
+Usage: pd [opts] <csv> [<csv [...]]
+
+Options:
+  -f SEP               set the field separator (default: ',')
+  -H                   read first row of each CSV as the header
+  -c COL[,COL[,..]]    cut columns by name or index (0-based)
+  -s COL[,COL[,..]]    sort the results by columns
+  -r                   reverse sort order
+  -lt COL,n            filter rows by COL < n
+  -gt COL,n            filter rows by COL > n
+  -eq COL,n            filter rows by COL = n
+  -is COL,s            filter rows by COL = s (string)
+  -in COL,s[,s,[..]]   filter rows by COL in [..] (strings)
+  -n                   negate filters
+
+Examples:
+
+  $ # output rows from data.csv where column 1 < 0 AND column 2 < 1
+  $ pd -lt 1,0 -lt 2,1 data.csv
+
+  $ # output rows from data1.csv and data2.csv where city is Denver
+  $ pd -is city,Denver data1.csv data2.csv
+
+  $ # output reverse-sorted rows from stdin separated by tabs
+  $ cat data.tsv | pd -f \\\t\ -H -gt -s age -r --

@@ -1,62 +1,107 @@
 #! /bin/env 8th
 
+needs utils/args
+
 needs csv
+needs ext
 needs opts
-needs utils
+needs pipe
 
-\ all the filter tests to run
-[] var, tests
+\ true if -H is provided
+false var, has-header
+false var, write-header
+false var, rev-sort
+false var, neg-filter
 
-: build-test \ col arg w -- a
-    >r >n r> 3 a:close ;
+\ array of row predicates, selected, and sorted columns
+a:new var, filters
+a:new var, selected-cols
+a:new var, sorted-cols
 
-: push-test \ col s w --
-    build-test tests @ swap a:push drop ;
+\ runtime filters and column select
+defer: filter
+defer: select
 
-: cuts \ s -- a
-    "," s:/ ( dup >n swap ?: ) a:map ;
+\ by default, select all columns
+( ) w:is select
 
-\ command line options
-{ "-f"  : ( a:shift dup csv:>sep )    \ field separator
-, "-c"  : ( a:shift cuts )            \ columns/cut
-, "-H"  : ( true )                    \ header row
-, "-oH" : ( true )                    \ output header row
-, "-of" : ( a:shift )                 \ output field separator
-, "-lt" : ( 2 a:take a:open ' n:< push-test null )
-, "-gt" : ( 2 a:take a:open ' n:> push-test null )
-, "-eq" : ( 2 a:take a:open ' n:= push-test null )
-} constant optmap
+: run-test \ a w T -- a T
+    if w:exec ;then drop false ;
 
-: read \ f -- f
-    "-H" app:opts@ if csv:rec> csv:>header then ;
+: build-test \ a -- w
+    a:open csv:col p: ( p: compile p: literal p: compile p: )
+
+    \ optionally negate all tests
+    neg-filter @ if ' not pipe:|> then ;
+
+: build-tests \ --
+    filters @ ' build-test a:map ( ' run-test true a:reduce ) curry w:is filter ;
+
+: build-select \ --
+    selected-cols @ a:len 0 = if drop ;then ' csv:col a:map ' csv:cut curry w:is select ;
+
+: .header \ a --
+    write-header @ if select "," csv:.row false write-header ! ;then
+
+    \ if the header exists, but wasn't written, drop it
+    has-header @ if drop then ;
+
+: read \ f -- f a
+    has-header @ if csv:read-header then ;
 
 : open \ s -- f
-    f:open-ro null? if "input file not found" . bye then ;
+    f:open-ro null? if "input file not found; see --help" . bye then ;
 
-: test \ a f test -- a f
-    swap >r a:open >r >r csv:col a:@ >n r> r> w:exec r> ;
+: process-row \ a --
+    filter if select "," csv:.row ;then drop ;
 
-: filter \ a -- a f
-    tests @ ' test a:every ;
+: process-file \ s --
+    dup "--" s:= if drop f:stdin else open then
 
-: cut \ a -- a
-    "-c" app:opts@ null; csv:cut ;
+    \ read the header, build runtime words and process all rows
+    read build-tests build-select .header ' process-row csv:each f:close ;
 
-: sep \ -- s
-    "-of" app:opts@ "," ?: ;
-
-: process \ a --
-    filter if cut sep csv:.rec then drop ;
+: process-files \ --
+    remaining-args @ ' process-file a:each! ;
 
 : app:main \ entry point
-    optmap opts:argv opts:parse
+    opts:parse process-files bye ;
 
-    \ any input files?
-    null? if
-        f:stdin read ' process csv:each
-    else
-        ( open read ' process csv:each f:close ) a:each!
-    then
+: usage \ --
+    "usage.txt" app:asset  >s . cr bye ;
 
-    \ done
-    bye ;
+with: opts
+    opt: -h usage ;
+    opt: --help usage ;
+
+    \ read and write headers
+    opt: -H
+        true has-header !
+        true write-header ! ;
+
+    \ field separator, select and sort columns
+    opt: -f next-arg csv:sep ;
+    opt: -c next-arg "," / selected-cols ! ;
+    opt: -s next-arg "," / sorted-cols ! ;
+
+    \ filter building
+    : push-filter \ s x w --
+        swap rot 3 a:close filters @ swap a:push drop ;
+
+    \ create a numeric comparison filter
+    : push-n-filter \ s x w --
+        ( >r >n r> ) pipe:<| push-filter ;
+
+    \ numeric comparison filters
+    opt: -lt next-arg "," / a:open >n ' n:< push-n-filter ;
+    opt: -gt next-arg "," / a:open >n ' n:> push-n-filter ;
+    opt: -eq next-arg "," / a:open >n ' n:= push-n-filter ;
+
+    \ string comparison filters
+    opt: -is next-arg "," / a:open ' s:=ic push-filter ;
+    opt: -in next-arg "," / a:shift swap ( swap ' s:=ic a:in? nip ) push-filter ;
+
+    \ inverse flags
+    opt: -r true rev-sort ! ;
+    opt: -n true neg-filter ! ;
+;with
