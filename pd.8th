@@ -99,7 +99,7 @@ defer: sort-mult
     ' process-row csv:each f:close ;
 
 : run \ --
-    remaining-args @ ' process a:each! ;
+    remaining-args @ ' f:glob a:map ( ' process a:each! ) a:each! ;
 
 : sort \ --
     sort? not if; cut-header sort-rows ' output-row a:each! drop ;

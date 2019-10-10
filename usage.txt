@@ -10,14 +10,15 @@ Options:
   -lt COL,x            filter rows by COL < x
   -gt COL,x            filter rows by COL > x
   -eq COL,x            filter rows by COL = x
+  -r                   reverse sort order
 
 Examples:
 
   $ # output rows from data.csv where column 1 < 0 AND column 2 < 1
   $ pd -lt 1,0 -lt 2,1 data.csv
 
-  $ # output rows from data1.csv and data2.csv where city is Denver
-  $ pd -is city,Denver data1.csv data2.csv
+  $ # output rows from all CSV files where city is Denver
+  $ pd -eq city,Denver *.csv
 
   $ # output reverse-sorted rows from stdin separated by tabs
-  $ cat data.tsv | pd -f \\\t\ -H -gt -s age -r --
+  $ cat data.tsv | pd -f "\t" -H -gt age,10 -r --
