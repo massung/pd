@@ -1,4 +1,4 @@
-#! /bin/env 8th
+#! /usr/bin/env 8th
 
 needs utils/args
 
@@ -7,65 +7,105 @@ needs ext
 needs opts
 needs pipe
 
-\ true if -H is provided
-false var, has-header
-false var, write-header
-false var, rev-sort
-false var, neg-filter
+\ process flags
+false var, header-row
+
+\ type words for columns
+m:new var, col-types
 
 \ array of row predicates, selected, and sorted columns
 a:new var, filters
-a:new var, selected-cols
-a:new var, sorted-cols
+a:new var, cuts
+a:new var, sort-cols
 
-\ runtime filters and column select
-defer: filter
-defer: select
+\ array of the per-row processing and collected rows
+a:new var, pipeline
+a:new var, rows
 
-\ by default, select all columns
-( ) w:is select
+\ set to ( -1 * ) for reverse-order sorting
+defer: sort-mult
 
-: run-test \ a w T -- a T
-    if w:exec ;then drop false ;
+\ default sort order
+( 1 n:* ) w:is sort-mult
 
-: build-test \ a -- w
-    a:open csv:col p: ( p: compile p: literal p: compile p: )
+\ conversion and compare words for column types
+[ ' >s , ' s:cmp ] constant s-col
+[ ' >n , ' n:cmp ] constant n-col
+[ ' d:parse , ' d:cmp ] constant d-col
 
-    \ optionally negate all tests
-    neg-filter @ if ' not pipe:|> then ;
+\ true dbg:line-info
 
-: build-tests \ --
-    filters @ ' build-test a:map ( ' run-test true a:reduce ) curry w:is filter ;
+: output-row \ a --
+   "," csv:.row ;
 
-: build-select \ --
-    selected-cols @ a:len 0 = if drop ;then ' csv:col a:map ' csv:cut curry w:is select ;
+: test \ T --
+    if; drop break ;
 
-: .header \ a --
-    write-header @ if select "," csv:.row false write-header ! ;then
+: sort? \ -- T
+    sort-cols @ a:empty? not nip ;
 
-    \ if the header exists, but wasn't written, drop it
-    has-header @ if drop then ;
+: cut-cols \ -- a
+    cuts @ ' csv:col a:map ;
 
-: read \ f -- f a
-    has-header @ if csv:read-header then ;
+: col-type \ s -- w w
+    col-types @ swap s-col m:@? nip a:open ;
 
-: open \ s -- f
-    f:open-ro null? if "input file not found; see --help" . bye then ;
+: build-filter \ s x test --
+    >r >r dup csv:col swap col-type
+
+    \ convert x to the proper type and curry with the cmp
+    over r> swap w:exec swap curry
+
+    \ compose the entire word and add it to the pipeline
+    r> 4 a:close pipe:new pipeline a:push! ;
+
+: build-filters \ --
+    filters @ ( a:open build-filter ) a:each! drop ;
+
+: build-cut \ --
+    cut-cols a:empty; ' csv:cut curry pipeline a:push! ;
+
+: build-output \ --
+    sort? if ( rows a:push! ) else ' output-row then pipeline a:push! ;
+
+: sort-cmp \ s --
+    dup col-type ' sort-mult pipe:|> >r >r csv:col r> pipe:|>
+
+    \ execute the col/conv on each item then pipe to cmp
+    ( >r r@ w:exec nip swap r> w:exec nip swap ) curry r> pipe:|> ;
+
+: sort-rows \ --
+    rows @ sort-cols @ ' sort-cmp a:map n-cmp a:sort ;
+
+: cut-header \ --
+    cuts @ a:empty; csv:set-header ;
+
+: process-header \ f -- f
+    header-row @ if csv:read-header then ;
 
 : process-row \ a --
-    filter if select "," csv:.row ;then drop ;
+    pipeline @ ' w:exec a:each! drop ;
 
-: process-file \ s --
-    dup "--" s:= if drop f:stdin else open then
+: process \ s --
+    dup "--" s:= if drop f:stdin else csv:open null? not assert then
 
-    \ read the header, build runtime words and process all rows
-    read build-tests build-select .header ' process-row csv:each f:close ;
+    \ read and maybe output header
+    process-header
 
-: process-files \ --
-    remaining-args @ ' process-file a:each! ;
+    \ reset and build the pipeline
+    a:new pipeline ! build-filters build-cut build-output
 
-: app:main \ entry point
-    opts:parse process-files bye ;
+    \ run pipeline over every row
+    ' process-row csv:each f:close ;
+
+: run \ --
+    remaining-args @ ' process a:each! ;
+
+: sort \ --
+    sort? not if; cut-header sort-rows ' output-row a:each! drop ;
+
+: app:main \ --
+    opts:parse run sort bye ;
 
 : usage \ --
     "usage.txt" app:asset  >s . cr bye ;
@@ -74,34 +114,23 @@ with: opts
     opt: -h usage ;
     opt: --help usage ;
 
-    \ read and write headers
-    opt: -H
-        true has-header !
-        true write-header ! ;
+    \ use defined header column names instead of first row
+    opt: -H true header-row ! ;
 
     \ field separator, select and sort columns
     opt: -f next-arg csv:sep ;
-    opt: -c next-arg "," / selected-cols ! ;
-    opt: -s next-arg "," / sorted-cols ! ;
+    opt: -c next-arg "," / cuts ! ;
+    opt: -s next-arg "," / sort-cols ! ;
 
-    \ filter building
-    : push-filter \ s x w --
-        swap rot 3 a:close filters @ swap a:push drop ;
+    \ set column types
+    opt: -n col-types @ next-arg "," / ( n-col m:! ) a:each! 2drop ;
+    opt: -d col-types @ next-arg "," / ( d-col m:! ) a:each! 2drop ;
 
-    \ create a numeric comparison filter
-    : push-n-filter \ s x w --
-        ( >r >n r> ) pipe:<| push-filter ;
-
-    \ numeric comparison filters
-    opt: -lt next-arg "," / a:open >n ' n:< push-n-filter ;
-    opt: -gt next-arg "," / a:open >n ' n:> push-n-filter ;
-    opt: -eq next-arg "," / a:open >n ' n:= push-n-filter ;
-
-    \ string comparison filters
-    opt: -is next-arg "," / a:open ' s:=ic push-filter ;
-    opt: -in next-arg "," / a:shift swap ( swap ' s:=ic a:in? nip ) push-filter ;
+    \ define column filters
+    opt: -lt next-arg "," / ( 0 < test ) a:push filters a:push! ;
+    opt: -gt next-arg "," / ( 0 > test ) a:push filters a:push! ;
+    opt: -eq next-arg "," / ( 0 = test ) a:push filters a:push! ;
 
     \ inverse flags
-    opt: -r true rev-sort ! ;
-    opt: -n true neg-filter ! ;
+    opt: -r ( -1 n:* ) w:is sort-mult ;
 ;with

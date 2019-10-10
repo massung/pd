@@ -4,14 +4,12 @@ Options:
   -f SEP               set the field separator (default: ',')
   -H                   read first row of each CSV as the header
   -c COL[,COL[,..]]    cut columns by name or index (0-based)
-  -s COL[,COL[,..]]    sort the results by columns
-  -r                   reverse sort order
-  -lt COL,n            filter rows by COL < n
-  -gt COL,n            filter rows by COL > n
-  -eq COL,n            filter rows by COL = n
-  -is COL,s            filter rows by COL = s (string)
-  -in COL,s[,s,[..]]   filter rows by COL in [..] (strings)
-  -n                   negate filters
+  -s COL[,COL[,..]]    sort the results ascending by columns
+  -n COL[,COL[,..]]    process columns as numbers
+  -d COL[,COL[,..]]    process columns as date/time
+  -lt COL,x            filter rows by COL < x
+  -gt COL,x            filter rows by COL > x
+  -eq COL,x            filter rows by COL = x
 
 Examples:
 
