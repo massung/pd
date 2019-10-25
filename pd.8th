@@ -25,9 +25,6 @@ a:new var, rows
 \ set to ( -1 * ) for reverse-order sorting
 defer: sort-mult
 
-\ default sort order
-( 1 n:* ) w:is sort-mult
-
 \ conversion and compare words for column types
 [ ' >s , ' s:cmp ] constant s-col
 [ ' >n , ' n:cmp ] constant n-col
