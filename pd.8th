@@ -2,10 +2,10 @@
 
 needs utils/args
 
-needs csv
-needs ext
-needs opts
-needs pipe
+needs csv/csv
+needs ext/core
+needs ext/opts
+needs ext/pipe
 
 \ process flags
 false var, header-row
